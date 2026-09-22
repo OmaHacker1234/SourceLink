@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SourceLink</title>
+<script>
+  try { document.documentElement.dataset.theme = localStorage.getItem('sl-theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+</script>
+<style>
+  :root {
+    --bg: #181818;
+    --field: #181818;
+    --purple: #3A2B50;
+    --purple-hi: #58447A;
+    --line: #3A2B50;
+    --focus: #58447A;
+    --text: #E8E6EC;
+    --muted: #877F94;
+    --error: #D98B9B;
+    --on-purple: #EEEAF4;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #F6F4F9;
+    --field: #FFFFFF;
+    --purple-hi: #4B3969;
+    --line: #CBC1DA;
+    --focus: #3A2B50;
+    --text: #1E1A24;
+    --muted: #6C6579;
+    --error: #B3364F;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; scrollbar-color: var(--purple) var(--bg); }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 56px 20px 40px; }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    padding-left: 12px;
+    border-left: 4px solid var(--purple);
+  }
+
+  .row { display: flex; gap: 8px; }
+
+  input, textarea, button { font: inherit; color: var(--text); }
+
+  input, textarea {
+    width: 100%;
+    padding: 11px 12px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    outline: none;
+  }
+  input { font-size: 16px; }
+  input:focus, textarea:focus { border-color: var(--focus); }
+  ::placeholder { color: var(--muted); }
+
+  textarea {
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre;
+    overflow: auto;
+  }
+  #src { height: 150px; margin-top: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #out { height: 340px; margin-top: 10px; }
+
+  button {
+    cursor: pointer;
+    padding: 0 18px;
+    color: var(--on-purple);
+    background: var(--purple);
+    border: 1px solid var(--purple);
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  button:hover { background: var(--purple-hi); border-color: var(--purple-hi); }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  button.ghost, button.tog { background: transparent; color: var(--text); border-color: var(--purple); padding: 6px 14px; }
+  button.ghost:hover, button.tog:hover, button.tog[aria-pressed="true"] {
+    background: var(--purple);
+    border-color: var(--purple);
+    color: var(--on-purple);
+  }
+
+  button.text {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  button.text:hover { background: none; color: var(--text); }
+
+  .modes { display: flex; gap: 8px; margin-top: 20px; }
+
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 34px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .bar .err { color: var(--error); }
+
+  .hint { margin: 28px 0 0; color: var(--muted); font-size: 13px; }
+  .pill {
+    display: inline-block;
+    padding: 1px 10px;
+    background: var(--purple);
+    color: var(--on-purple);
+    border-radius: 6px;
+    text-decoration: none;
+    cursor: grab;
+  }
+
+  footer.foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 24px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .made-with { display: inline-flex; align-items: center; gap: 6px; }
+  .made-with svg { width: 15px; height: 15px; fill: var(--purple-hi); flex: none; }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .modal {
+    position: relative;
+    width: 100%;
+    max-width: 340px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 30px 24px;
+    text-align: center;
+  }
+  .modal p { margin: 0; font-size: 15px; }
+  .modal-x {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    line-height: 26px;
+    font-size: 18px;
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    border-radius: 6px;
+  }
+  .modal-x:hover { background: var(--purple); color: var(--on-purple); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>SourceLink</h1>
+    <button id="theme" class="text" type="button">Light</button>
+  </header>
+
+  <div class="row">
+    <input id="url" type="text" inputmode="url" placeholder="Site URL (optional)"
+           title="Used to turn relative links into full URLs"
+           autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Site URL">
+    <button id="paste">Paste &amp; extract</button>
+  </div>
+
+  <textarea id="src" spellcheck="false" aria-label="Page source"
+            placeholder="1. Open view-source:https://site.com in a new tab&#10;2. Select all and copy&#10;3. Click Paste &amp; extract, or paste here"></textarea>
+
+  <div class="modes">
+    <button id="adv" class="tog" type="button" aria-pressed="false"
+            title="Group URLs by theme and label each request">Advanced</button>
+    <button id="getonly" class="tog" type="button" aria-pressed="false" hidden
+            title="Only requests made with GET">GET only</button>
+  </div>
+
+  <textarea id="out" readonly wrap="off" aria-label="Extracted links" placeholder="Links show up here"></textarea>
+
+  <div class="bar">
+    <span id="msg"></span>
+    <button id="copy" class="ghost">Copy</button>
+  </div>
+
+  <p class="hint">
+    Skip the copy-paste on desktop: drag <a id="bm" class="pill" href="#">SourceLink</a>
+    to your bookmarks bar, then click it on any page.
+  </p>
+
+  <footer class="foot">
+    <button id="help" class="ghost" type="button">Help</button>
+    <span class="made-with">Made with Claude<svg viewBox="0 0 24 24" aria-hidden="true"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill-rule="evenodd" /></svg></span>
+  </footer>
+</main>
+
+<div id="helpBackdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpText">
+    <button id="helpClose" class="modal-x" type="button" aria-label="Close">&times;</button>
+    <p id="helpText">Need Help? Contact @imnottheomagd on Discord!</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const say = (text, isErr) => {
+    $('msg').textContent = text;
+    $('msg').className = isErr ? 'err' : '';
+  };
+
+  function lib() {
+    const ORDER = ['Databases', 'APIs', 'WebSockets', 'Analytics & tracking', 'Fonts', 'Scripts', 'Stylesheets', 'Images', 'Media', 'Frames & embeds', 'Downloads', 'Social', 'Pages', 'External links', 'Contact', 'Other'];
+    const SCHEME = /^(https?|wss?|ftp|mailto|tel|mongodb(\+srv)?|postgres(ql)?|mysql|rediss?|amqps?):$/;
+    const DB_HOST = /(^|\.)(firebaseio\.com|firebasedatabase\.app|firestore\.googleapis\.com|supabase\.(co|in)|mongodb\.net|mongodb-api\.com|documents\.azure\.com|airtable\.com|upstash\.io|neon\.tech|turso\.io|planetscale\.com|xata\.sh|convex\.cloud|appwrite\.(io|network)|cloudant\.com|fauna\.com|cockroachlabs\.cloud|restdb\.io|hasura\.app)$|\.rds\.amazonaws\.com$|^dynamodb\.[a-z0-9-]+\.amazonaws\.com$/;
+    const FONT_HOST = /(^|\.)(fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net|fonts\.adobe\.com|fonts\.bunny\.net|fontawesome\.com)$/;
+    const TRACK_HOST = /(^|\.)(google-analytics\.com|googletagmanager\.com|googletagservices\.com|doubleclick\.net|googlesyndication\.com|connect\.facebook\.net|hotjar\.com|segment\.(com|io)|mixpanel\.com|amplitude\.com|sentry\.io|clarity\.ms|plausible\.io|fullstory\.com|heapanalytics\.com|newrelic\.com|nr-data\.net|datadoghq\.com|cloudflareinsights\.com|posthog\.com|vercel-insights\.com|bat\.bing\.com|snap\.licdn\.com|matomo\.cloud)$|^(analytics|telemetry|metrics|tracking|pixel|stats|collector)\./;
+    const API_HOST = /^(api|graphql|gql|rest|rpc|gateway)[.-]|[.-]api[.-]|(^|\.)googleapis\.com$/;
+    const API_PATH = /\/(api|graphql|gql|rest|rpc|trpc|ajax|xhr|wp-json|oauth2?|socket\.io|jsonrpc|_next\/data)(\/|$)|\/v\d+(\/|$)/;
+    const SOCIAL_HOST = /(^|\.)(facebook\.com|fb\.com|twitter\.com|x\.com|instagram\.com|linkedin\.com|youtube\.com|youtu\.be|tiktok\.com|pinterest\.com|reddit\.com|t\.me|telegram\.me|discord\.gg|discord\.com|wa\.me|whatsapp\.com|twitch\.tv|threads\.net|bsky\.app|mastodon\.social|snapchat\.com)$/;
+    const ENT = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', '#39': "'", '#x27': "'", '#x2f': '/', '#47': '/' };
+    const dec = s => s.replace(/&(amp|quot|apos|lt|gt|#39|#x27|#x2f|#47);/gi, (m, e) => ENT[e.toLowerCase()]);
+    const KIND = new Map(Object.entries({ img: 'img', script: 'script', iframe: 'frame', frame: 'frame', embed: 'embed', object: 'embed', video: 'media', audio: 'media', track: 'media', input: 'img', use: 'img', image: 'img' }));
+    const AS = new Map([['style', 'style'], ['script', 'script'], ['font', 'font'], ['image', 'img'], ['fetch', 'fetch']]);
+    const ATTR = /([^\s=\/"'<>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+    const S = '(?<q>[\'"`])(?<u>(?:(?!\\k<q>)[^\\s])+)\\k<q>';
+    const method = (o, keys) => {
+      const m = new RegExp('\\b(?:' + keys + ')[\'"]?\\s*:\\s*[\'"](\\w+)[\'"]', 'i').exec(o || '');
+      return m ? m[1].toUpperCase() : 'GET';
+    };
+    const CALLS = [
+      [new RegExp('\\bfetch\\(\\s*' + S + '(?:\\s*,\\s*\\{(?<o>(?:(?!\\bfetch\\s*\\()[\\s\\S]){0,250}))?', 'g'), m => [method(m.groups.o, 'method'), 'fetch']],
+      [new RegExp('\\baxios\\.(?<v>get|post|put|delete|patch|head)\\(\\s*' + S, 'g'), m => [m.groups.v.toUpperCase(), 'axios']],
+      [new RegExp('(?:\\$|jQuery)\\.(?<v>get|getJSON|post)\\(\\s*' + S, 'g'), m => [m.groups.v === 'post' ? 'POST' : 'GET', 'jquery']],
+      [new RegExp('\\.ajax\\(\\s*\\{(?<o>(?:(?!\\.ajax\\()[\\s\\S]){0,300}?)\\burl\\s*:\\s*' + S + '(?<r>(?:(?!\\.ajax\\()[\\s\\S]){0,300})', 'g'), m => [method(m.groups.o + ' ' + m.groups.r, 'type|method'), 'jquery']],
+      [new RegExp('\\.open\\(\\s*[\'"](?<v>GET|POST|PUT|DELETE|PATCH|HEAD)[\'"]\\s*,\\s*' + S, 'gi'), m => [m.groups.v.toUpperCase(), 'xhr']],
+      [new RegExp('new\\s+WebSocket\\(\\s*' + S, 'g'), () => ['WS', 'ws']],
+      [new RegExp('new\\s+EventSource\\(\\s*' + S, 'g'), () => ['GET', 'sse']],
+      [new RegExp('sendBeacon\\(\\s*' + S, 'g'), () => ['POST', 'beacon']],
+      [new RegExp('\\b(?:import|importScripts)\\(\\s*' + S, 'g'), () => ['GET', 'script']],
+      [new RegExp('new\\s+(?:Shared)?Worker\\(\\s*' + S, 'g'), () => ['GET', 'script']]
+    ];
+
+    function analyze(src, base) {
+      const found = new Map();
+      const rank = m => (m === '?' ? 0 : m === 'LINK' ? 1 : 2);
+      let baseHost = '';
+      try { baseHost = new URL(base).hostname; } catch (e) {}
+
+      let b = base;
+      const bt = /<base\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(src);
+      if (bt) {
+        try { b = new URL(dec(bt[1] || bt[2] || bt[3] || ''), base || undefined).href; } catch (e) {}
+      }
+
+      const put = (raw, method, kind) => {
+        const v = dec((raw || '').trim());
+        if (!v || v[0] === '#' || /[\s<>{}\\]/.test(v)) return;
+        let url;
+        try {
+          const u = new URL(v, b || undefined);
+          if (!SCHEME.test(u.protocol)) return;
+          url = u.href;
+        } catch (e) {
+          if (b || /^[a-z][a-z0-9+.-]*:/i.test(v)) return;
+          url = v;
+        }
+        let host = '';
+        try { host = new URL(url).hostname; } catch (e) {}
+        const old = found.get(url);
+        if (!old || rank(method) > rank(old.method)) {
+          found.set(url, { url: url, method: method, kind: kind, internal: !host || host === baseHost });
+        }
+      };
+
+      for (const tag of src.match(/<[a-z][^>]{0,30000}>/gi) || []) {
+        const name = /^<([a-z][a-z0-9:-]*)/i.exec(tag)[1].toLowerCase();
+        const a = Object.create(null);
+        for (const m of tag.matchAll(ATTR)) {
+          a[m[1].toLowerCase()] = m[2] !== undefined ? m[2] : m[3] !== undefined ? m[3] : m[4];
+        }
+        const rel = (a.rel || '').toLowerCase();
+
+        if (name === 'a' || name === 'area') { put(a.href || a['xlink:href'], 'LINK', 'link'); continue; }
+        if (name === 'base') { put(a.href, 'LINK', 'base'); continue; }
+        if (name === 'form') { put(a.action, (a.method || 'get').toUpperCase() === 'GET' ? 'GET' : 'POST', 'form'); continue; }
+        if (name === 'link') {
+          if (/stylesheet/.test(rel)) put(a.href, 'GET', 'style');
+          else if (/icon/.test(rel)) put(a.href, 'GET', 'img');
+          else if (/preload|prefetch|modulepreload/.test(rel)) put(a.href, 'GET', AS.get((a.as || '').toLowerCase()) || (/modulepreload/.test(rel) ? 'script' : 'resource'));
+          else if (/preconnect|dns-prefetch/.test(rel)) put(a.href, 'LINK', 'hint');
+          else if (/manifest/.test(rel)) put(a.href, 'GET', 'manifest');
+          else put(a.href, 'LINK', 'link');
+          continue;
+        }
+
+        let kind = KIND.get(name) || 'resource';
+        if (name === 'source') {
+          kind = /^(video|audio)/.test(a.type || '') || (!a.srcset && !/^image/.test(a.type || '')) ? 'media' : 'img';
+        }
+        put(a.src, 'GET', kind);
+        if (name === 'object') put(a.data, 'GET', 'embed');
+        put(a.poster, 'GET', 'img');
+        ['data-src', 'data-original', 'data-lazy-src'].forEach(k => put(a[k], 'GET', kind));
+        ['srcset', 'data-srcset'].forEach(k => {
+          (a[k] || '').split(',').forEach(p => put(p.trim().split(/\s+/)[0], 'GET', 'img'));
+        });
+        put(a.formaction, '?', 'form');
+        put(a['data-href'], 'LINK', 'link');
+        put(a['data-url'], 'LINK', 'link');
+        if (name === 'use' || name === 'image') put(a.href || a['xlink:href'], 'GET', 'img');
+        else put(a.href || a['xlink:href'], 'LINK', 'link');
+      }
+
+      const text = src.replace(/\\\//g, '/');
+
+      for (const [re, fn] of CALLS) {
+        for (const m of text.matchAll(re)) {
+          const r = fn(m);
+          put(m.groups.u, r[0], r[1]);
+        }
+      }
+      for (const m of text.matchAll(/url\(\s*['"]?([^'")\s]+)/gi)) put(m[1], 'GET', 'css');
+      for (const m of text.matchAll(/@import\s+['"]([^'"]+)['"]/gi)) put(m[1], 'GET', 'style');
+
+      const loose = /(?:https?|wss?|ftp|mongodb(?:\+srv)?|postgres(?:ql)?|mysql|rediss?|amqps?):\/\/[^\s"'<>`\\^{}|)]+/g;
+      for (const m of text.matchAll(loose)) {
+        put(m[0].split(/&(?:quot|apos|#39|#x27|lt|gt);/i)[0].replace(/[.,;:!?\]]+$/, ''), '?', 'text');
+      }
+
+      return [...found.values()];
+    }
+
+    function topicOf(e) {
+      let u = null;
+      try { u = new URL(e.url); } catch (err) {}
+      const proto = u ? u.protocol : '';
+      const host = u ? u.hostname.toLowerCase() : '';
+      const path = (u ? u.pathname : e.url.split(/[?#]/)[0]).toLowerCase();
+      const ext = (/\.([a-z0-9]{1,6})$/.exec(path) || [])[1] || '';
+      const req = e.method !== 'LINK' || e.kind === 'hint';
+
+      if (/^(mongodb(\+srv)?|postgres(ql)?|mysql|rediss?|amqps?):$/.test(proto) || (req && DB_HOST.test(host))) return 'Databases';
+      if (proto === 'mailto:' || proto === 'tel:') return 'Contact';
+      if (proto === 'ws:' || proto === 'wss:') return 'WebSockets';
+      if (e.kind === 'font' || /^(woff2?|ttf|otf|eot)$/.test(ext) || (req && FONT_HOST.test(host))) return 'Fonts';
+      if (e.kind === 'beacon' || (req && TRACK_HOST.test(host))) return 'Analytics & tracking';
+      if (e.kind === 'frame' || e.kind === 'embed') return 'Frames & embeds';
+      if (e.kind === 'style' || ext === 'css') return 'Stylesheets';
+      if (e.kind === 'script' || /^(m?js|cjs)$/.test(ext) || /\.js\.map$/.test(path)) return 'Scripts';
+      if (e.kind === 'img' || /^(png|jpe?g|gif|webp|avif|svg|ico|bmp)$/.test(ext)) return 'Images';
+      if (e.kind === 'media' || /^(mp4|webm|ogv|ogg|mov|mp3|wav|m4a|aac|flac|m3u8|mpd)$/.test(ext)) return 'Media';
+      if (/^(zip|rar|7z|tar|gz|tgz|xz|apk|xapk|aab|exe|msi|dmg|pkg|deb|rpm|iso|jar|pdf|docx?|xlsx?|pptx?|csv|torrent)$/.test(ext) || /\/(releases\/download|archive)\//.test(path)) return 'Downloads';
+      if (/^(fetch|xhr|axios|jquery|sse|form)$/.test(e.kind) || (req && (API_HOST.test(host) || API_PATH.test(path) || /^(json|jsonld|ndjson|xml)$/.test(ext)))) return 'APIs';
+      if (SOCIAL_HOST.test(host)) return 'Social';
+      if (e.method === 'LINK' || e.method === '?') return e.internal ? 'Pages' : 'External links';
+      return 'Other';
+    }
+
+    function report(entries, o) {
+      const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+      if (!o.advanced) {
+        return {
+          text: entries.map(e => e.url).join('\n'),
+          label: entries.length ? plural(entries.length, 'link') : 'No links found.'
+        };
+      }
+      const list = o.get ? entries.filter(e => e.method === 'GET') : entries;
+      const groups = new Map();
+      list.forEach(e => {
+        const t = topicOf(e);
+        if (!groups.has(t)) groups.set(t, []);
+        groups.get(t).push(e);
+      });
+      const blocks = ORDER.filter(t => groups.has(t)).map(t => {
+        const g = groups.get(t);
+        return '# ' + t + ' (' + g.length + ')\n' + g.map(e => e.method.padEnd(7) + e.kind.padEnd(9) + e.url).join('\n');
+      });
+      return {
+        text: blocks.join('\n\n'),
+        label: list.length
+          ? plural(list.length, o.get ? 'GET request' : 'URL') + ' in ' + plural(blocks.length, 'group')
+          : (o.get ? 'No GET requests found.' : 'No links found.')
+      };
+    }
+
+    return { analyze: analyze, report: report };
+  }
+
+  async function bookmarklet(L, opts) {
+    const ID = 'sourcelink-root';
+    const old = document.getElementById(ID);
+    if (old) old.remove();
+
+    let src;
+    try {
+      const res = await fetch(location.href, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error(String(res.status));
+      src = await res.text();
+    } catch (e) {
+      src = document.documentElement.outerHTML;
+    }
+    const entries = L.analyze(src, location.href);
+    const st = { theme: opts.theme, adv: opts.adv, get: opts.get };
+    const PAL = {
+      dark: { bg: '#181818', text: '#E8E6EC', muted: '#877F94', line: '#3A2B50', field: '#181818' },
+      light: { bg: '#F6F4F9', text: '#1E1A24', muted: '#6C6579', line: '#CBC1DA', field: '#FFFFFF' }
+    };
+    const PUR = '#3A2B50';
+    const ON = '#EEEAF4';
+
+    const host = document.createElement('div');
+    host.id = ID;
+    host.style.cssText = 'all:initial;position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647';
+    const root = host.attachShadow({ mode: 'open' });
+    const mk = (tag, parent, text, css) => {
+      const el = document.createElement(tag);
+      if (css) el.style.cssText = css;
+      if (text) el.textContent = text;
+      parent.appendChild(el);
+      return el;
+    };
+    const BTN = 'cursor:pointer;padding:6px 12px;border:1px solid ' + PUR + ';border-radius:6px;font:inherit;font-size:13px;';
+
+    const panel = mk('div', root, '', 'box-sizing:border-box;width:100%;height:100%;padding:24px 20px;display:flex;flex-direction:column;gap:14px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif');
+    const head = mk('div', panel, '', 'display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap');
+    mk('div', head, 'SourceLink', 'font-size:22px;font-weight:600;letter-spacing:-.02em;padding-left:12px;border-left:4px solid ' + PUR);
+    const tools = mk('div', head, '', 'display:flex;gap:8px;flex-wrap:wrap');
+    const bAdv = mk('button', tools, 'Advanced', BTN);
+    const bGet = mk('button', tools, 'GET only', BTN);
+    const bTheme = mk('button', tools, '', BTN);
+    const ta = mk('textarea', panel, '', 'box-sizing:border-box;flex:1;width:100%;padding:12px;border-radius:6px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;resize:none;outline:none;border:1px solid transparent');
+    ta.readOnly = true;
+    ta.wrap = 'off';
+    const bar = mk('div', panel, '', 'display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px');
+    const count = mk('span', bar);
+    const btns = mk('div', bar, '', 'display:flex;gap:8px');
+    const copy = mk('button', btns, 'Copy', BTN);
+    const close = mk('button', btns, 'Close', BTN);
+
+    const paint = () => {
+      const p = PAL[st.theme];
+      panel.style.background = p.bg;
+      panel.style.color = p.text;
+      ta.style.background = p.field;
+      ta.style.color = p.text;
+      ta.style.borderColor = p.line;
+      count.style.color = p.muted;
+      bTheme.textContent = st.theme === 'dark' ? 'Light' : 'Dark';
+      bGet.style.display = st.adv ? '' : 'none';
+      bAdv.setAttribute('aria-pressed', String(st.adv));
+      bGet.setAttribute('aria-pressed', String(st.get));
+      [[bAdv, st.adv], [bGet, st.get], [bTheme, false], [close, false], [copy, true]].forEach(pair => {
+        pair[0].style.background = pair[1] ? PUR : 'transparent';
+        pair[0].style.color = pair[1] ? ON : p.text;
+      });
+    };
+    const render = () => {
+      const r = L.report(entries, { advanced: st.adv, get: st.get });
+      ta.value = r.text;
+      count.textContent = r.label;
+    };
+
+    const onKey = e => { if (e.key === 'Escape') closeIt(); };
+    const closeIt = () => { host.remove(); document.removeEventListener('keydown', onKey, true); };
+    bAdv.onclick = () => { st.adv = !st.adv; paint(); render(); };
+    bGet.onclick = () => { st.get = !st.get; paint(); render(); };
+    bTheme.onclick = () => { st.theme = st.theme === 'dark' ? 'light' : 'dark'; paint(); };
+    close.onclick = closeIt;
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(ta.value); }
+      catch (e) { ta.select(); document.execCommand('copy'); }
+      copy.textContent = 'Copied';
+      setTimeout(() => { copy.textContent = 'Copy'; }, 1200);
+    };
+    document.addEventListener('keydown', onKey, true);
+
+    paint();
+    render();
+    document.documentElement.appendChild(host);
+  }
+
+  const { analyze, report } = lib();
+  const store = {
+    get: k => { try { return localStorage.getItem('sl-' + k); } catch (e) { return null; } },
+    set: (k, v) => { try { localStorage.setItem('sl-' + k, v); } catch (e) {} }
+  };
+  const state = {
+    theme: store.get('theme') === 'light' ? 'light' : 'dark',
+    adv: store.get('adv') === '1',
+    get: store.get('get') === '1'
+  };
+  let entries = [];
+
+  function setBookmarklet() {
+    const opts = JSON.stringify({ theme: state.theme, adv: state.adv, get: state.get });
+    const code = 'void (' + bookmarklet + ')((' + lib + ')(), ' + opts + ')';
+    $('bm').href = 'javascript:' + encodeURIComponent(code.replace(/\n\s*/g, '\n'));
+  }
+
+  function sync() {
+    document.documentElement.dataset.theme = state.theme;
+    $('theme').textContent = state.theme === 'dark' ? 'Light' : 'Dark';
+    $('adv').setAttribute('aria-pressed', String(state.adv));
+    $('getonly').setAttribute('aria-pressed', String(state.get));
+    $('getonly').hidden = !state.adv;
+    setBookmarklet();
+  }
+
+  function render() {
+    const has = $('src').value.trim() !== '';
+    const r = report(entries, { advanced: state.adv, get: state.get });
+    $('out').value = r.text;
+    say(has ? r.label : '');
+  }
+
+  function run() {
+    const src = $('src').value;
+    let base = null;
+    const raw = $('url').value.trim();
+    if (raw) {
+      try { base = new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).href; }
+      catch (e) { return say('Invalid site URL.', true); }
+    }
+    entries = src.trim() ? analyze(src, base) : [];
+    render();
+  }
+
+  let timer;
+  $('src').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 200); });
+  $('url').addEventListener('change', run);
+  $('url').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+
+  $('paste').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) return say('Clipboard is empty.', true);
+      $('src').value = text;
+      run();
+    } catch (e) {
+      $('src').focus();
+      say('Clipboard blocked. Press Ctrl+V in the box instead.', true);
+    }
+  });
+
+  $('adv').addEventListener('click', () => {
+    state.adv = !state.adv;
+    store.set('adv', state.adv ? '1' : '0');
+    sync();
+    render();
+  });
+  $('getonly').addEventListener('click', () => {
+    state.get = !state.get;
+    store.set('get', state.get ? '1' : '0');
+    sync();
+    render();
+  });
+  $('theme').addEventListener('click', () => {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    store.set('theme', state.theme);
+    sync();
+  });
+
+  $('copy').addEventListener('click', async () => {
+    const text = $('out').value;
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) { $('out').select(); document.execCommand('copy'); }
+    const btn = $('copy');
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+  });
+
+  $('bm').addEventListener('click', e => {
+    e.preventDefault();
+    say('Drag it to your bookmarks bar instead of clicking it.');
+  });
+
+  const closeHelp = () => { $('helpBackdrop').hidden = true; $('help').focus(); };
+  $('help').addEventListener('click', () => { $('helpBackdrop').hidden = false; $('helpClose').focus(); });
+  $('helpClose').addEventListener('click', closeHelp);
+  $('helpBackdrop').addEventListener('click', e => { if (e.target === $('helpBackdrop')) closeHelp(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('helpBackdrop').hidden) closeHelp(); });
+
+  sync();
+})();
+</script>
+</body>
+</html>
